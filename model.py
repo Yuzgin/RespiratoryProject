@@ -5,7 +5,6 @@ import torch.nn as nn
 from torch.utils.data import DataLoader, Dataset
 from PIL import Image
 from torchvision import transforms, models
-from torchvision.models import ResNet18_Weights
 from glob import glob
 
 class ChestXrayDataset(Dataset):
@@ -18,6 +17,7 @@ class ChestXrayDataset(Dataset):
     def load_data(self, csv_file, subset_list):
         # Load main CSV file
         df = pd.read_csv(csv_file)
+        print("Sample Image Index from CSV:", df['Image Index'].head())
         
         # Filter based on subset list (train or test)
         if subset_list:
@@ -34,10 +34,14 @@ class ChestXrayDataset(Dataset):
 
     def get_image_paths(self):
         # Set the search path based on the corrected structure
-        search_path = os.path.join(self.images_folder,'images_*/images', '*.png')
+        search_path = os.path.join(self.images_folder, 'images_*/images', '*.png')
         
         # Collect image paths
         image_paths = {os.path.basename(x): x for x in glob(search_path)}
+
+        print(f"Found {len(image_paths)} images.")
+        if len(image_paths) > 0:
+            print("Sample image paths:", list(image_paths.items())[:5])
         
         return image_paths
 
@@ -75,9 +79,9 @@ class ChestXrayDataset(Dataset):
 def main():
     # Paths to data directories and files
     data_folder = "/shared/storage/cs/studentscratch/ay841/nih-chest-xrays"
-    csv_file = os.path.join("/shared/storage/cs/studentscratch/ay841/nih-chest-xrays", "Data_Entry_2017.csv")
-    train_list = os.path.join("/shared/storage/cs/studentscratch/ay841/nih-chest-xrays", "train_val_list.txt")
-    test_list = os.path.join("/shared/storage/cs/studentscratch/ay841/nih-chest-xrays", "test_list.txt")
+    csv_file = os.path.join(data_folder, "Data_Entry_2017.csv")
+    train_list = os.path.join(data_folder, "train_val_list.txt")
+    test_list = os.path.join(data_folder, "test_list.txt")
 
     # Define data transformations
     normalize = transforms.Normalize([0.485, 0.456, 0.406],
@@ -115,9 +119,13 @@ def main():
     test_loader = DataLoader(test_dataset, batch_size=32, shuffle=False, num_workers=2)
 
     # Load pretrained ResNet-18 model
-    model = models.resnet18(weights=ResNet18_Weights.DEFAULT)
+    model = models.resnet18()  # Create model without weights
     num_classes = len(train_dataset.label_map)
     model.fc = nn.Linear(model.fc.in_features, num_classes)  # Adjust final layer for multi-label output
+
+    # Load manually downloaded weights
+    weights_path = "/shared/storage/cs/studentscratch/ay841/torch_cache/hub/checkpoints/resnet18-f37072fd.pth"
+    model.load_state_dict(torch.load(weights_path))
 
     # Move model to GPU if available
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
