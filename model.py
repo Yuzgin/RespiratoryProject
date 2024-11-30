@@ -34,7 +34,7 @@ class ChestXrayDataset(Dataset):
 
     def get_image_paths(self):
         # Set the search path based on the corrected structure
-        search_path = os.path.join(self.images_folder, 'images_*', 'images', '*.png')
+        search_path = os.path.join(self.images_folder, '*.png')
         
         # Collect image paths
         image_paths = {os.path.basename(x): x for x in glob(search_path)}
@@ -74,10 +74,10 @@ class ChestXrayDataset(Dataset):
 
 def main():
     # Paths to data directories and files
-    data_folder = "data"
-    csv_file = os.path.join(data_folder, "Data_Entry_2017.csv")
-    train_list = os.path.join(data_folder, "train_val_list.txt")
-    test_list = os.path.join(data_folder, "test_list.txt")
+    data_folder = "/shared/storage/cs/studentscratch/ay841/images"
+    csv_file = os.path.join("/shared/storage/cs/studentscratch/ay841", "Data_Entry_2017.csv")
+    train_list = os.path.join("/shared/storage/cs/studentscratch/ay841", "train_val_list.txt")
+    test_list = os.path.join("/shared/storage/cs/studentscratch/ay841", "test_list.txt")
 
     # Define data transformations
     normalize = transforms.Normalize([0.485, 0.456, 0.406],
