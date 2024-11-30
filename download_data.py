@@ -1,48 +1,34 @@
 import os
-import requests
-from zipfile import ZipFile
+import kagglehub
 from tqdm import tqdm
 
 def download_and_extract_nih_dataset(output_folder):
     """
-    Downloads and extracts the NIH Chest X-ray dataset from the official NIH website.
+    Downloads and extracts the NIH Chest X-ray dataset using KaggleHub.
     """
-    # URL of the NIH dataset zip file
-    dataset_url = "https://nihcc.app.box.com/v/ChestXray-NIHCC"
-    zip_file_name = "chest_xray_dataset.zip"
-    zip_file_path = os.path.join(output_folder, zip_file_name)
+    print("Step 1: Initiating download...")
 
-    # Create the output folder if it doesn't exist
+    # Use KaggleHub to download the dataset
+    path = kagglehub.dataset_download("nih-chest-xrays/data")
+
+    print("Step 2: Download complete.")
+    print("Path to dataset files (temporary):", path)
+
+    # Move files to the specified output folder
     os.makedirs(output_folder, exist_ok=True)
 
-    # Check if the dataset has already been downloaded
-    if not os.path.exists(zip_file_path):
-        print("Step 1: Checking and initiating download...")
-        print(f"Downloading dataset from {dataset_url}...")
-        
-        # Initiate download with progress bar
-        with requests.get(dataset_url, stream=True) as response:
-            response.raise_for_status()  # Raise an error for HTTP issues
-            total_size = int(response.headers.get('content-length', 0))
-            with open(zip_file_path, "wb") as zip_file, tqdm(
-                desc="Downloading",
-                total=total_size,
-                unit="B",
-                unit_scale=True,
-                unit_divisor=1024,
-            ) as progress_bar:
-                for chunk in response.iter_content(chunk_size=1024):
-                    zip_file.write(chunk)
-                    progress_bar.update(len(chunk))
-        print("Step 2: Download complete.")
-    else:
-        print("Dataset already downloaded. Skipping download.")
+    # Count total files for progress bar
+    total_files = sum([len(files) for _, _, files in os.walk(path)])
 
-    # Extract the dataset
-    print("Step 3: Extracting dataset...")
-    with ZipFile(zip_file_path, "r") as zip_ref:
-        zip_ref.extractall(output_folder)
-    print("Step 4: Dataset extraction complete.")
+    with tqdm(total=total_files, desc="Moving files", unit="file") as progress_bar:
+        for root, dirs, files in os.walk(path):
+            for file in files:
+                source_path = os.path.join(root, file)
+                destination_path = os.path.join(output_folder, file)
+                os.rename(source_path, destination_path)
+                progress_bar.update(1)
+
+    print(f"Step 3: Dataset files moved to {output_folder}.")
 
 if __name__ == "__main__":
     # Specify the output directory
