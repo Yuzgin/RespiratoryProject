@@ -74,10 +74,10 @@ class ChestXrayDataset(Dataset):
 
 def main():
     # Paths to data directories and files
-    data_folder = "/shared/storage/cs/studentscratch/ay841/images"
-    csv_file = os.path.join("/shared/storage/cs/studentscratch/ay841", "Data_Entry_2017.csv")
-    train_list = os.path.join("/shared/storage/cs/studentscratch/ay841", "train_val_list.txt")
-    test_list = os.path.join("/shared/storage/cs/studentscratch/ay841", "test_list.txt")
+    data_folder = "/shared/storage/cs/studentscratch/ay841/nih-chest-xrays/images"
+    csv_file = os.path.join("/shared/storage/cs/studentscratch/ay841/nih-chest-xrays", "Data_Entry_2017.csv")
+    train_list = os.path.join("/shared/storage/cs/studentscratch/ay841/nih-chest-xrays", "train_val_list.txt")
+    test_list = os.path.join("/shared/storage/cs/studentscratch/ay841/nih-chest-xrays", "test_list.txt")
 
     # Define data transformations
     normalize = transforms.Normalize([0.485, 0.456, 0.406],
