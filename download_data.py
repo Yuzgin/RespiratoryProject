@@ -32,7 +32,7 @@ def download_and_extract_nih_dataset(output_folder):
 
 if __name__ == "__main__":
     # Specify the output directory
-    output_directory = "/scratch/torch-env/nih-chest-xray"
+    output_directory = "/scratch/ay841/nih-chest-xray"
 
     # Download and extract the dataset
     download_and_extract_nih_dataset(output_directory)
