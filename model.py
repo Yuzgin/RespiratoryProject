@@ -80,9 +80,9 @@ class ChestXrayDataset(Dataset):
 def main():
     # Paths to data directories and files
     data_folder = "/shared/storage/cs/studentscratch/ay841/nih-chest-xrays"
-    csv_file = os.path.join("/shared/storage/cs/studentscratch/ay841/nih-chest-xrays", "Data_Entry_2017.csv")
-    train_list = os.path.join("/shared/storage/cs/studentscratch/ay841/nih-chest-xrays", "train_val_list.txt")
-    test_list = os.path.join("/shared/storage/cs/studentscratch/ay841/nih-chest-xrays", "test_list.txt")
+    csv_file = os.path.join(data_folder, "Data_Entry_2017.csv")
+    train_list = os.path.join(data_folder, "train_val_list.txt")
+    test_list = os.path.join(data_folder, "test_list.txt")
 
     # Define data transformations
     normalize = transforms.Normalize([0.485, 0.456, 0.406],
@@ -149,6 +149,10 @@ def main():
             running_loss += loss.item()
 
         print(f'Epoch [{epoch+1}/{num_epochs}], Loss: {running_loss / len(train_loader):.4f}')
+
+    # Save the trained model weights
+    torch.save(model.state_dict(), "resnet18_trained.pth")
+    print("Model weights saved to resnet18_trained.pth")
 
     # Evaluation on test set
     model.eval()
