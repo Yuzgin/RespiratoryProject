@@ -5,7 +5,7 @@ import torch.nn as nn
 from torch.utils.data import DataLoader, Dataset
 from PIL import Image
 from torchvision import transforms
-from torchvision.models import vit_small_patch16_224, ViT_Small_Weights
+from torchvision.models import vit_b_16, ViT_B_16_Weights
 from glob import glob
 from tqdm import tqdm
 
@@ -53,7 +53,6 @@ class ChestXrayDataset(Dataset):
             image = self.transform(image)
         return image, target
 
-
 def main():
     data_folder = "/shared/storage/cs/studentscratch/ay841/nih-chest-xrays"
     csv_file = os.path.join(data_folder, "Data_Entry_2017.csv")
@@ -62,15 +61,14 @@ def main():
 
     normalize = transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
     transform_train = transforms.Compose([
-        transforms.Resize((256, 256)),
+        transforms.Resize((224, 224)),
         transforms.RandomHorizontalFlip(),
         transforms.RandomRotation(15),
-        transforms.RandomAffine(degrees=0, translate=(0.1, 0.1)),
         transforms.ToTensor(),
         normalize,
     ])
     transform_test = transforms.Compose([
-        transforms.Resize((256, 256)),
+        transforms.Resize((224, 224)),
         transforms.ToTensor(),
         normalize,
     ])
@@ -81,7 +79,11 @@ def main():
     train_loader = DataLoader(train_dataset, batch_size=16, shuffle=True, num_workers=2)
     test_loader = DataLoader(test_dataset, batch_size=16, shuffle=False, num_workers=2)
 
-    model = vit_small_patch16_224(weights=ViT_Small_Weights.IMAGENET1K_V1)
+    # Load pretrained Vision Transformer
+    weights = ViT_B_16_Weights.IMAGENET1K_V1
+    model = vit_b_16(weights=weights)
+
+    # Adjust the classifier head for multi-label classification
     num_classes = len(train_dataset.label_map)
     model.heads.head = nn.Linear(model.heads.head.in_features, num_classes)
 
@@ -95,31 +97,31 @@ def main():
     for epoch in range(num_epochs):
         model.train()
         running_loss = 0.0
-        
+
         # Add progress bar with tqdm
         loop = tqdm(train_loader, total=len(train_loader), desc=f"Epoch {epoch+1}/{num_epochs}")
-        
+
         for images, targets in loop:
             images, targets = images.to(device), targets.to(device)
-            
+
             # Forward pass
             outputs = model(images)
             loss = criterion(outputs, targets)
-            
+
             # Backward pass and optimization
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
-            
+
             running_loss += loss.item()
-            
+
             # Update tqdm progress bar
             loop.set_postfix(loss=loss.item())
-        
+
         print(f'Epoch [{epoch+1}/{num_epochs}], Average Loss: {running_loss / len(train_loader):.4f}')
 
-    torch.save(model.state_dict(), "vit_distl_trained.pth")
-    print("Model weights saved to vit_distl_trained.pth")
+    torch.save(model.state_dict(), "vit_b16_trained.pth")
+    print("Model weights saved to vit_b16_trained.pth")
 
     model.eval()
     with torch.no_grad():
@@ -132,7 +134,6 @@ def main():
             total += targets.size(0) * targets.size(1)
             correct += (predicted == targets).sum().item()
         print(f'Test Accuracy: {100 * correct / total:.2f}%')
-
 
 if __name__ == "__main__":
     main()
