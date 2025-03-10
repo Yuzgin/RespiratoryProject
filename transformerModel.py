@@ -8,16 +8,7 @@ from torchvision import transforms
 from torchvision.models import vit_b_16, ViT_B_16_Weights
 from glob import glob
 from tqdm import tqdm
-import subprocess  # To call nvidia-smi
-
-# Function to check GPU usage
-def print_gpu_usage():
-    print("GPU Usage:")
-    result = subprocess.run(['nvidia-smi', '--query-gpu=index,utilization.gpu,memory.used,memory.total', '--format=csv,noheader,nounits'], stdout=subprocess.PIPE)
-    gpu_info = result.stdout.decode('utf-8').strip().split('\n')
-    for info in gpu_info:
-        print(info)
-    print("-" * 50)
+import subprocess
 
 class ChestXrayDataset(Dataset):
     def __init__(self, images_folder, csv_file, transform=None, subset_list=None):
@@ -63,6 +54,22 @@ class ChestXrayDataset(Dataset):
             image = self.transform(image)
         return image, target
 
+def get_available_gpus(n=4):
+    """Get the n GPUs with the most available memory."""
+    # Get GPU memory info from nvidia-smi
+    gpu_memories = []
+    result = subprocess.run(['nvidia-smi', '--query-gpu=index,memory.free', '--format=csv,noheader,nounits'], stdout=subprocess.PIPE)
+    gpu_info = result.stdout.decode('utf-8').strip().split('\n')
+
+    # Parse GPU memory info
+    for line in gpu_info:
+        gpu_id, memory_free = line.split(', ')
+        gpu_memories.append((int(gpu_id), int(memory_free)))
+
+    # Sort by memory free and pick the top n
+    sorted_gpus = sorted(gpu_memories, key=lambda x: x[1], reverse=True)[:n]
+    return [gpu[0] for gpu in sorted_gpus]
+
 def main():
     data_folder = "/shared/storage/cs/studentscratch/ay841/nih-chest-xrays"
     csv_file = os.path.join(data_folder, "Data_Entry_2017.csv")
@@ -100,11 +107,12 @@ def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = model.to(device)
 
-    # Wrap model with DataParallel for multi-GPU usage
-    model = nn.DataParallel(model, device_ids=[4, 5, 6])  # GPUs 4, 5, 6
+    # Get the top 4 GPUs with the most available memory
+    selected_gpus = get_available_gpus(n=4)
+    print(f"Using GPUs {selected_gpus} for training.")
 
-    # Confirm GPUs in use
-    print_gpu_usage()
+    # Wrap model with DataParallel for multi-GPU usage
+    model = nn.DataParallel(model, device_ids=selected_gpus)
 
     criterion = nn.BCEWithLogitsLoss()
     optimizer = torch.optim.AdamW(model.parameters(), lr=5e-5)
@@ -115,10 +123,6 @@ def main():
     for epoch in range(num_epochs):
         model.train()
         running_loss = 0.0
-
-        # Print GPU usage at the beginning of each epoch
-        print(f"Epoch {epoch+1}/{num_epochs}")
-        print_gpu_usage()
 
         # Add progress bar with tqdm
         loop = tqdm(train_loader, total=len(train_loader), desc=f"Epoch {epoch+1}/{num_epochs}")
@@ -159,3 +163,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
