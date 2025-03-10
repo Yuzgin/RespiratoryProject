@@ -8,20 +8,8 @@ from torchvision import transforms
 from torchvision.models import vit_b_16, ViT_B_16_Weights, resnet50
 from glob import glob
 from tqdm import tqdm
-import subprocess
 import numpy as np
 from sklearn.metrics import roc_auc_score
-
-def get_best_gpus(num_gpus=4):
-    result = subprocess.run(['nvidia-smi', '--query-gpu=index,memory.free', '--format=csv,nounits,noheader'], 
-                            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-    gpu_memories = []
-    for line in result.stdout.splitlines():
-        index, memory = line.split(',')
-        gpu_memories.append((int(index), int(memory.strip())))
-    sorted_gpus = sorted(gpu_memories, key=lambda x: x[1], reverse=True)
-    selected_gpus = [x[0] for x in sorted_gpus[:num_gpus]]
-    return selected_gpus
 
 class ChestXrayDataset(Dataset):
     def __init__(self, images_folder, csv_file, transform=None, subset_list=None):
@@ -118,11 +106,10 @@ def main():
 
     model = HybridModel(vit_model, cnn_model, num_classes)
 
-    best_gpus = get_best_gpus(num_gpus=4)
-    print(f"Using GPUs: {best_gpus}")
-    device = torch.device(f"cuda:{best_gpus[0]}" if torch.cuda.is_available() else "cpu")
+    print("Using GPUs: 0, 1")
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     model = model.to(device)
-    model = nn.DataParallel(model, device_ids=best_gpus)
+    model = nn.DataParallel(model, device_ids=[0, 1])
 
     criterion = nn.BCEWithLogitsLoss()
     optimizer = torch.optim.AdamW(model.parameters(), lr=5e-5)
@@ -173,3 +160,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
