@@ -8,19 +8,28 @@ from torchvision import transforms
 from torchvision.models import vit_b_16, ViT_B_16_Weights
 from glob import glob
 from tqdm import tqdm
+import subprocess
 
-# Function to get the GPUs with the most available memory
+# Function to get the GPUs with the most available memory using nvidia-smi
 def get_best_gpus(num_gpus=4):
-    # Get memory information for each GPU
-    gpu_memories = [(i, torch.cuda.memory_allocated(i)) for i in range(torch.cuda.device_count())]
+    # Run nvidia-smi to get GPU memory info
+    result = subprocess.run(['nvidia-smi', '--query-gpu=index,memory.free', '--format=csv,nounits,noheader'], 
+                            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     
-    # Sort GPUs by the available memory (highest memory first)
+    # Parse the output into a list of (GPU index, available memory in MB)
+    gpu_memories = []
+    for line in result.stdout.splitlines():
+        index, memory = line.split(',')
+        gpu_memories.append((int(index), int(memory.strip())))
+
+    # Sort GPUs by available memory (highest memory first)
     sorted_gpus = sorted(gpu_memories, key=lambda x: x[1], reverse=True)
     
     # Get the indices of the GPUs with the most available memory
     selected_gpus = [x[0] for x in sorted_gpus[:num_gpus]]
     
     return selected_gpus
+
 
 class ChestXrayDataset(Dataset):
     def __init__(self, images_folder, csv_file, transform=None, subset_list=None):
