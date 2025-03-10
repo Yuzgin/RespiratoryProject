@@ -87,7 +87,7 @@ def main():
     num_classes = len(train_dataset.label_map)
     model.heads.head = nn.Linear(model.heads.head.in_features, num_classes)
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cuda:4" if torch.cuda.is_available() else "cpu")
     model = model.to(device)
 
     criterion = nn.BCEWithLogitsLoss()
