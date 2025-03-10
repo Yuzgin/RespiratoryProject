@@ -48,6 +48,10 @@ class HybridCNNTransformer(nn.Module):
         return output
 
 def main():
+
+    batch_size = int(input("Enter batch size: "))
+    num_workers = int(input("Enter number of workers: "))
+
     data_folder = "/shared/storage/cs/studentscratch/ay841/nih-chest-xrays"
     csv_file = os.path.join(data_folder, "Data_Entry_2017.csv")
     train_list = os.path.join(data_folder, "train_val_list.txt")
@@ -70,8 +74,8 @@ def main():
     train_dataset = ChestXrayDataset(data_folder, csv_file, transform_train, train_list)
     test_dataset = ChestXrayDataset(data_folder, csv_file, transform_test, test_list)
 
-    train_loader = DataLoader(train_dataset, batch_size=256, shuffle=True, num_workers=32)
-    test_loader = DataLoader(test_dataset, batch_size=256, shuffle=False, num_workers=32)
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers)
+    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers)
 
     num_classes = len(train_dataset.label_map)
     model = HybridCNNTransformer(num_classes)
