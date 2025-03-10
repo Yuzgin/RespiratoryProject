@@ -75,7 +75,7 @@ def evaluate():
     model = vit_b_16(weights=weights)
     num_classes = len(test_dataset.label_map)
     model.heads.head = nn.Linear(model.heads.head.in_features, num_classes)
-    model.load_state_dict(torch.load("vit_b16_trained.pth"))
+    model.load_state_dict(torch.load("vit_b16_trained.pth", weights_only=True))
     
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = model.to(device)
