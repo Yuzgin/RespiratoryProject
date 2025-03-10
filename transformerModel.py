@@ -90,6 +90,9 @@ def main():
     device = torch.device("cuda:4" if torch.cuda.is_available() else "cpu")
     model = model.to(device)
 
+    # Wrap model with DataParallel for multi-GPU usage
+    model = nn.DataParallel(model, device_ids=[4, 5, 6])  # GPUs 4, 5, 6
+
     criterion = nn.BCEWithLogitsLoss()
     optimizer = torch.optim.AdamW(model.parameters(), lr=5e-5)
 
