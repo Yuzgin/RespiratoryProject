@@ -132,12 +132,37 @@ def main():
     criterion = nn.BCEWithLogitsLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 
+    # # Training loop
+    # num_epochs = 5
+    # for epoch in range(num_epochs):
+    #     model.train()
+    #     running_loss = 0.0
+
+    #     progress_bar = tqdm(train_loader, desc=f"Epoch {epoch+1}/{num_epochs}", leave=True)
+        
+    #     for images, targets in train_loader:
+    #         images = images.to(device)
+    #         targets = targets.to(device)
+    #         outputs = model(images)
+    #         loss = criterion(outputs, targets)
+    #         optimizer.zero_grad()
+    #         loss.backward()
+    #         optimizer.step()
+
+    #         running_loss += loss.item()
+
+    #     print(f'Epoch [{epoch+1}/{num_epochs}], Loss: {running_loss / len(train_loader):.4f}')
+
     # Training loop
     num_epochs = 5
     for epoch in range(num_epochs):
         model.train()
         running_loss = 0.0
-        for images, targets in train_loader:
+        
+        # Wrap train_loader with tqdm
+        progress_bar = tqdm(train_loader, desc=f"Epoch {epoch+1}/{num_epochs}", leave=True)
+        
+        for images, targets in progress_bar:
             images = images.to(device)
             targets = targets.to(device)
             outputs = model(images)
@@ -145,9 +170,12 @@ def main():
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
-
+    
             running_loss += loss.item()
-
+            
+            # Update tqdm description with current loss
+            progress_bar.set_postfix(loss=loss.item())
+    
         print(f'Epoch [{epoch+1}/{num_epochs}], Loss: {running_loss / len(train_loader):.4f}')
 
     # Save the trained model weights
