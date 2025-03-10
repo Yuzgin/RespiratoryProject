@@ -7,6 +7,7 @@ from PIL import Image
 from torchvision import transforms, models
 from torchvision.models import ResNet18_Weights
 from glob import glob
+from tqdm import tqdm
 
 class ChestXrayDataset(Dataset):
     def __init__(self, images_folder, csv_file, transform=None, subset_list=None):
