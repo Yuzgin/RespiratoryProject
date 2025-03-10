@@ -76,8 +76,8 @@ def main():
     train_dataset = ChestXrayDataset(data_folder, csv_file, transform_train, train_list)
     test_dataset = ChestXrayDataset(data_folder, csv_file, transform_test, test_list)
 
-    train_loader = DataLoader(train_dataset, batch_size=16, shuffle=True, num_workers=2)
-    test_loader = DataLoader(test_dataset, batch_size=16, shuffle=False, num_workers=2)
+    train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True, num_workers=4)
+    test_loader = DataLoader(test_dataset, batch_size=32, shuffle=False, num_workers=4)
 
     # Load pretrained Vision Transformer
     weights = ViT_B_16_Weights.IMAGENET1K_V1
