@@ -8,7 +8,19 @@ from torchvision import transforms
 from torchvision.models import vit_b_16, ViT_B_16_Weights
 from glob import glob
 from tqdm import tqdm
-import subprocess
+
+# Function to get the GPUs with the most available memory
+def get_best_gpus(num_gpus=4):
+    # Get memory information for each GPU
+    gpu_memories = [(i, torch.cuda.memory_allocated(i)) for i in range(torch.cuda.device_count())]
+    
+    # Sort GPUs by the available memory (highest memory first)
+    sorted_gpus = sorted(gpu_memories, key=lambda x: x[1], reverse=True)
+    
+    # Get the indices of the GPUs with the most available memory
+    selected_gpus = [x[0] for x in sorted_gpus[:num_gpus]]
+    
+    return selected_gpus
 
 class ChestXrayDataset(Dataset):
     def __init__(self, images_folder, csv_file, transform=None, subset_list=None):
@@ -54,22 +66,6 @@ class ChestXrayDataset(Dataset):
             image = self.transform(image)
         return image, target
 
-def get_available_gpus(n=4):
-    """Get the n GPUs with the most available memory."""
-    # Get GPU memory info from nvidia-smi
-    gpu_memories = []
-    result = subprocess.run(['nvidia-smi', '--query-gpu=index,memory.free', '--format=csv,noheader,nounits'], stdout=subprocess.PIPE)
-    gpu_info = result.stdout.decode('utf-8').strip().split('\n')
-
-    # Parse GPU memory info
-    for line in gpu_info:
-        gpu_id, memory_free = line.split(', ')
-        gpu_memories.append((int(gpu_id), int(memory_free)))
-
-    # Sort by memory free and pick the top n
-    sorted_gpus = sorted(gpu_memories, key=lambda x: x[1], reverse=True)[:n]
-    return [gpu[0] for gpu in sorted_gpus]
-
 def main():
     data_folder = "/shared/storage/cs/studentscratch/ay841/nih-chest-xrays"
     csv_file = os.path.join(data_folder, "Data_Entry_2017.csv")
@@ -104,15 +100,15 @@ def main():
     num_classes = len(train_dataset.label_map)
     model.heads.head = nn.Linear(model.heads.head.in_features, num_classes)
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    # Get the top 4 GPUs with the most available memory
+    best_gpus = get_best_gpus(num_gpus=4)
+    print(f"Using GPUs: {best_gpus}")
+
+    device = torch.device(f"cuda:{best_gpus[0]}" if torch.cuda.is_available() else "cpu")
     model = model.to(device)
 
-    # Get the top 4 GPUs with the most available memory
-    selected_gpus = get_available_gpus(n=4)
-    print(f"Using GPUs {selected_gpus} for training.")
-
     # Wrap model with DataParallel for multi-GPU usage
-    model = nn.DataParallel(model, device_ids=selected_gpus)
+    model = nn.DataParallel(model, device_ids=best_gpus)  # Use the selected GPUs
 
     criterion = nn.BCEWithLogitsLoss()
     optimizer = torch.optim.AdamW(model.parameters(), lr=5e-5)
