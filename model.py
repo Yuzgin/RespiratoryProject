@@ -117,8 +117,8 @@ def main():
     print(f"Length of test dataset: {len(test_dataset)}")
 
     # Create data loaders
-    train_loader = DataLoader(train_dataset, batch_size=16, shuffle=True, num_workers=2)
-    test_loader = DataLoader(test_dataset, batch_size=16, shuffle=False, num_workers=2)
+    train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True, num_workers=12)
+    test_loader = DataLoader(test_dataset, batch_size=64, shuffle=False, num_workers=12)
 
     # Load pretrained ResNet-18 model
     model = models.resnet18(weights=ResNet18_Weights.DEFAULT)
