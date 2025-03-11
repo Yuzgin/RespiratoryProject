@@ -5,9 +5,10 @@ import torch.nn as nn
 from torch.utils.data import DataLoader, Dataset
 from PIL import Image
 from torchvision import transforms, models
-from torchvision.models import ResNet18_Weights
+from torchvision.models import ResNet50_Weights
 from glob import glob
 from tqdm import tqdm
+from sklearn.metrics import roc_auc_score
 
 class ChestXrayDataset(Dataset):
     def __init__(self, images_folder, csv_file, transform=None, subset_list=None):
@@ -35,10 +36,7 @@ class ChestXrayDataset(Dataset):
         return df
 
     def get_image_paths(self):
-        # Set the search path based on the corrected structure
-        search_path = os.path.join(self.images_folder,'images_*/images', '*.png')
-        
-        # Collect image paths
+        search_path = os.path.join(self.images_folder, 'images_*/images', '*.png')
         image_paths = {os.path.basename(x): x for x in glob(search_path)}
 
         print(f"Found {len(image_paths)} images.")
@@ -48,7 +46,6 @@ class ChestXrayDataset(Dataset):
         return image_paths
 
     def create_label_map(self):
-        # Collect unique labels for multi-label classification
         labels = set()
         for item in self.data['Finding Labels']:
             labels.update(item.split('|'))
@@ -68,7 +65,6 @@ class ChestXrayDataset(Dataset):
         labels = row['Finding Labels'].split('|')
         target = torch.zeros(len(self.label_map))
         
-        # Encode labels as multi-hot vector
         for label in labels:
             if label in self.label_map:
                 target[self.label_map[label]] = 1
@@ -112,7 +108,6 @@ def main():
                                     transform=transform_test,
                                     subset_list=test_list)
 
-    # Print the length of the datasets
     print(f"Length of train dataset: {len(train_dataset)}")
     print(f"Length of test dataset: {len(test_dataset)}")
 
@@ -120,12 +115,11 @@ def main():
     train_loader = DataLoader(train_dataset, batch_size=256, shuffle=True, num_workers=12)
     test_loader = DataLoader(test_dataset, batch_size=256, shuffle=False, num_workers=12)
 
-    # Load pretrained ResNet-18 model
-    model = models.resnet18(weights=ResNet18_Weights.DEFAULT)
+    # Load pretrained ResNet-50 model
+    model = models.resnet50(weights=ResNet50_Weights.DEFAULT)
     num_classes = len(train_dataset.label_map)
-    model.fc = nn.Linear(model.fc.in_features, num_classes)  # Adjust final layer for multi-label output
+    model.fc = nn.Linear(model.fc.in_features, num_classes)
 
-    # Move model to GPU if available
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = model.to(device)
 
@@ -133,34 +127,11 @@ def main():
     criterion = nn.BCEWithLogitsLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 
-    # # Training loop
-    # num_epochs = 5
-    # for epoch in range(num_epochs):
-    #     model.train()
-    #     running_loss = 0.0
-
-    #     progress_bar = tqdm(train_loader, desc=f"Epoch {epoch+1}/{num_epochs}", leave=True)
-        
-    #     for images, targets in train_loader:
-    #         images = images.to(device)
-    #         targets = targets.to(device)
-    #         outputs = model(images)
-    #         loss = criterion(outputs, targets)
-    #         optimizer.zero_grad()
-    #         loss.backward()
-    #         optimizer.step()
-
-    #         running_loss += loss.item()
-
-    #     print(f'Epoch [{epoch+1}/{num_epochs}], Loss: {running_loss / len(train_loader):.4f}')
-
     # Training loop
     num_epochs = 5
     for epoch in range(num_epochs):
         model.train()
         running_loss = 0.0
-        
-        # Wrap train_loader with tqdm
         progress_bar = tqdm(train_loader, desc=f"Epoch {epoch+1}/{num_epochs}", leave=True)
         
         for images, targets in progress_bar:
@@ -173,30 +144,53 @@ def main():
             optimizer.step()
     
             running_loss += loss.item()
-            
-            # Update tqdm description with current loss
             progress_bar.set_postfix(loss=loss.item())
     
         print(f'Epoch [{epoch+1}/{num_epochs}], Loss: {running_loss / len(train_loader):.4f}')
 
     # Save the trained model weights
-    torch.save(model.state_dict(), "resnet18_trained.pth")
-    print("Model weights saved to resnet18_trained.pth")
+    torch.save(model.state_dict(), "resnet50_trained.pth")
+    print("Model weights saved to resnet50_trained.pth")
 
     # Evaluation on test set
     model.eval()
+    all_targets = []
+    all_outputs = []
+
     with torch.no_grad():
         total = 0
         correct = 0
-        for images, targets in test_loader:
+        for images, targets in tqdm(test_loader, desc="Evaluating"):
             images = images.to(device)
             targets = targets.to(device)
             outputs = model(images)
+
             predicted = (torch.sigmoid(outputs) > 0.5).float()
             total += targets.size(0) * targets.size(1)
             correct += (predicted == targets).sum().item()
 
-        print(f'Test Accuracy: {100 * correct / total:.2f}%')
+            all_targets.append(targets.cpu().numpy())
+            all_outputs.append(torch.sigmoid(outputs).cpu().numpy())
+
+    # Compute accuracy
+    accuracy = 100 * correct / total
+    print(f'Test Accuracy: {accuracy:.2f}%')
+
+    # Compute AUC score
+    all_targets = np.concatenate(all_targets, axis=0)
+    all_outputs = np.concatenate(all_outputs, axis=0)
+
+    try:
+        auc_scores = []
+        for i in range(all_targets.shape[1]):
+            if len(np.unique(all_targets[:, i])) > 1:  # Ensure there are both positive and negative samples
+                auc = roc_auc_score(all_targets[:, i], all_outputs[:, i])
+                auc_scores.append(auc)
+
+        mean_auc = np.mean(auc_scores)
+        print(f'Mean AUC score: {mean_auc:.4f}')
+    except Exception as e:
+        print(f"Failed to calculate AUC: {e}")
 
 if __name__ == "__main__":
     main()
