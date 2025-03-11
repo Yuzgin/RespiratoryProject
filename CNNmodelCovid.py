@@ -59,7 +59,7 @@ class ChestXrayDataset(Dataset):
 
 def main():
 
-    data_folder = "/shared/storage/cs/studentscratch/ay841/covid19-dataset/COVID-19_Radiography_Database"
+    data_folder = "/shared/storage/cs/studentscratch/ay841/covid19-dataset/COVID-19_Radiography_Dataset"
     print(f"Dataset folder contents: {os.listdir(data_folder)}")
     
     for label in ['COVID-19', 'NORMAL', 'LUNG_OPACITY', 'VIRAL_PNEUMONIA']:
