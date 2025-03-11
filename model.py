@@ -109,11 +109,16 @@ def main():
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers)
     test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers)
 
+    # Use GPUs 0, 1, 2, 3 explicitly
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = models.resnet50(weights=ResNet50_Weights.DEFAULT)
     num_classes = len(train_dataset.label_map)
     model.fc = nn.Linear(model.fc.in_features, num_classes)
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    # Force the use of GPUs 0, 1, 2, 3
+    model = nn.DataParallel(model, device_ids=[0, 1, 2, 3])
+    print("Using GPUs 0, 1, 2, 3")
+
     model = model.to(device)
 
     criterion = nn.BCEWithLogitsLoss()
