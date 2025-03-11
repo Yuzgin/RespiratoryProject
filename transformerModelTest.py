@@ -75,9 +75,15 @@ def evaluate():
     model = vit_b_16(weights=weights)
     num_classes = len(test_dataset.label_map)
     model.heads.head = nn.Linear(model.heads.head.in_features, num_classes)
+
+    # Load weights
     model.load_state_dict(torch.load("vit_b16_trained.pth", strict=False))
-    
+
+    # Set up 4 GPUs
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model = nn.DataParallel(model, device_ids=[0, 1, 2, 3])  # Use 4 GPUs explicitly
+    print("Using GPUs 0, 1, 2, 3")
+
     model = model.to(device)
     model.eval()
 
@@ -86,22 +92,37 @@ def evaluate():
     correct = 0
     total = 0
 
+    print("Evaluating model...")
     with torch.no_grad():
         for images, targets in tqdm(test_loader, desc="Evaluating"):
             images, targets = images.to(device), targets.to(device)
             outputs = model(images)
             predicted = (torch.sigmoid(outputs) > 0.5).float()
+
             total += targets.numel()
             correct += (predicted == targets).sum().item()
+
             all_targets.append(targets.cpu().numpy())
             all_outputs.append(torch.sigmoid(outputs).cpu().numpy())
 
+    # Compute accuracy
+    accuracy = 100 * correct / total
+    print(f'Test Accuracy: {accuracy:.2f}%')
+
+    # Compute AUC
     all_targets = np.vstack(all_targets)
     all_outputs = np.vstack(all_outputs)
-    auc_score = roc_auc_score(all_targets, all_outputs, average='macro')
 
-    print(f'Test Accuracy: {100 * correct / total:.2f}%')
-    print(f'Test AUC Score: {auc_score:.4f}')
+    try:
+        auc_scores = []
+        for i in range(all_targets.shape[1]):
+            if len(np.unique(all_targets[:, i])) > 1:
+                auc = roc_auc_score(all_targets[:, i], all_outputs[:, i])
+                auc_scores.append(auc)
+        mean_auc = np.mean(auc_scores)
+        print(f'Test AUC Score: {mean_auc:.4f}')
+    except Exception as e:
+        print(f"Failed to calculate AUC: {e}")
 
 if __name__ == "__main__":
     evaluate()
