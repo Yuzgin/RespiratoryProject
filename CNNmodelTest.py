@@ -58,7 +58,16 @@ class ChestXrayDataset(Dataset):
 
 
 def main():
+
     data_folder = "/shared/storage/cs/studentscratch/ay841/covid19-dataset/COVID-19_Radiography_Database"
+    print(f"Dataset folder contents: {os.listdir(data_folder)}")
+    
+    for label in ['COVID-19', 'NORMAL', 'LUNG_OPACITY', 'VIRAL_PNEUMONIA']:
+        folder_path = os.path.join(data_folder, label)
+        if os.path.exists(folder_path):
+            print(f"{label} folder contains {len(os.listdir(folder_path))} files")
+        else:
+            print(f"{label} folder does not exist")
 
     normalize = transforms.Normalize([0.485, 0.456, 0.406],
                                      [0.229, 0.224, 0.225])
