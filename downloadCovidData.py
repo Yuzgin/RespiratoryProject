@@ -6,7 +6,7 @@ from tqdm import tqdm
 # Define the dataset name and output path
 dataset_name = 'tawsifurrahman/covid19-radiography-database'
 output_path = '../covid19-dataset'
-zip_file = '../covid19-dataset.zip'
+zip_file = '../covid19-radiography-database.zip'
 
 def download_dataset():
     print(f"Downloading dataset: {dataset_name}...")
