@@ -58,7 +58,7 @@ class ChestXrayDataset(Dataset):
 
 
 def main():
-    data_folder = "/shared/storage/cs/studentscratch/ay841/COVID-19_Radiography_Database"
+    data_folder = "/shared/storage/cs/studentscratch/ay841/covid19-dataset/COVID-19_Radiography_Database"
 
     normalize = transforms.Normalize([0.485, 0.456, 0.406],
                                      [0.229, 0.224, 0.225])
