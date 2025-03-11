@@ -19,20 +19,16 @@ class ChestXrayDataset(Dataset):
         self.label_map = self.create_label_map()
 
     def load_data(self, csv_file, subset_list):
-        # Load main CSV file
         df = pd.read_csv(csv_file)
         print("Sample Image Index from CSV:", df['Image Index'].head())
-        
-        # Filter based on subset list (train or test)
+
         if subset_list:
             with open(subset_list, 'r') as f:
                 image_list = [line.strip() for line in f.readlines()]
             df = df[df['Image Index'].isin(image_list)]
 
-        # Map image file names to paths and filter rows with missing images
         df['path'] = df['Image Index'].map(self.get_image_paths())
-        df.dropna(subset=['path'], inplace=True)  # Remove entries without valid image paths
-
+        df.dropna(subset=['path'], inplace=True)
         print(f"Loaded dataset with {len(df)} images after filtering")
         return df
 
@@ -60,12 +56,9 @@ class ChestXrayDataset(Dataset):
     def __getitem__(self, idx):
         row = self.data.iloc[idx]
         img_path = row['path']
-
-        # Load and process image
         image = Image.open(img_path).convert('RGB')
         labels = row['Finding Labels'].split('|')
         target = torch.zeros(len(self.label_map))
-        
         for label in labels:
             if label in self.label_map:
                 target[self.label_map[label]] = 1
@@ -76,13 +69,11 @@ class ChestXrayDataset(Dataset):
         return image, target
 
 def main():
-    # Paths to data directories and files
     data_folder = "/shared/storage/cs/studentscratch/ay841/nih-chest-xrays"
     csv_file = os.path.join(data_folder, "Data_Entry_2017.csv")
     train_list = os.path.join(data_folder, "train_val_list.txt")
     test_list = os.path.join(data_folder, "test_list.txt")
 
-    # Define data transformations
     normalize = transforms.Normalize([0.485, 0.456, 0.406],
                                      [0.229, 0.224, 0.225])
     transform_train = transforms.Compose([
@@ -99,7 +90,6 @@ def main():
         normalize,
     ])
 
-    # Create datasets
     train_dataset = ChestXrayDataset(images_folder=data_folder,
                                      csv_file=csv_file,
                                      transform=transform_train,
@@ -112,11 +102,13 @@ def main():
     print(f"Length of train dataset: {len(train_dataset)}")
     print(f"Length of test dataset: {len(test_dataset)}")
 
-    # Create data loaders
-    train_loader = DataLoader(train_dataset, batch_size=256, shuffle=True, num_workers=12)
-    test_loader = DataLoader(test_dataset, batch_size=256, shuffle=False, num_workers=12)
+    # Ask user for batch size and number of workers
+    batch_size = int(input("Enter batch size: "))
+    num_workers = int(input("Enter number of workers: "))
 
-    # Load pretrained ResNet-50 model
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers)
+    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers)
+
     model = models.resnet50(weights=ResNet50_Weights.DEFAULT)
     num_classes = len(train_dataset.label_map)
     model.fc = nn.Linear(model.fc.in_features, num_classes)
@@ -124,43 +116,41 @@ def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = model.to(device)
 
-    # Define loss function and optimizer
     criterion = nn.BCEWithLogitsLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 
-    # Training loop
     num_epochs = 5
     for epoch in range(num_epochs):
         model.train()
         running_loss = 0.0
         progress_bar = tqdm(train_loader, desc=f"Epoch {epoch+1}/{num_epochs}", leave=True)
-        
+
         for images, targets in progress_bar:
             images = images.to(device)
             targets = targets.to(device)
             outputs = model(images)
             loss = criterion(outputs, targets)
+
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
-    
+
             running_loss += loss.item()
             progress_bar.set_postfix(loss=loss.item())
-    
+
         print(f'Epoch [{epoch+1}/{num_epochs}], Loss: {running_loss / len(train_loader):.4f}')
 
-    # Save the trained model weights
     torch.save(model.state_dict(), "resnet50_trained.pth")
     print("Model weights saved to resnet50_trained.pth")
 
-    # Evaluation on test set
+    # Evaluation
     model.eval()
     all_targets = []
     all_outputs = []
+    total = 0
+    correct = 0
 
     with torch.no_grad():
-        total = 0
-        correct = 0
         for images, targets in tqdm(test_loader, desc="Evaluating"):
             images = images.to(device)
             targets = targets.to(device)
@@ -173,21 +163,18 @@ def main():
             all_targets.append(targets.cpu().numpy())
             all_outputs.append(torch.sigmoid(outputs).cpu().numpy())
 
-    # Compute accuracy
     accuracy = 100 * correct / total
     print(f'Test Accuracy: {accuracy:.2f}%')
 
-    # Compute AUC score
     all_targets = np.concatenate(all_targets, axis=0)
     all_outputs = np.concatenate(all_outputs, axis=0)
 
     try:
         auc_scores = []
         for i in range(all_targets.shape[1]):
-            if len(np.unique(all_targets[:, i])) > 1:  # Ensure there are both positive and negative samples
+            if len(np.unique(all_targets[:, i])) > 1:
                 auc = roc_auc_score(all_targets[:, i], all_outputs[:, i])
                 auc_scores.append(auc)
-
         mean_auc = np.mean(auc_scores)
         print(f'Mean AUC score: {mean_auc:.4f}')
     except Exception as e:
