@@ -82,7 +82,7 @@ def evaluate():
     model.heads.head = nn.Linear(model.heads.head.in_features, num_classes)
 
     # Load weights
-    model.load_state_dict(torch.load("vit_b16_trained.pth", strict=False))
+    model.load_state_dict(torch.load("vit_b16_trained.pth"))
 
     # Set up 4 GPUs
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
