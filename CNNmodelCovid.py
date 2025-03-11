@@ -19,16 +19,22 @@ class ChestXrayDataset(Dataset):
         self.label_map = self.create_label_map()
 
     def load_data(self):
-        # Class labels based on folder names
-        classes = ['COVID-19', 'NORMAL', 'LUNG_OPACITY', 'VIRAL_PNEUMONIA']
+        # Match actual folder names
+        classes = ['COVID', 'Normal', 'Lung_Opacity', 'Viral Pneumonia']
         data = []
 
         for label in classes:
             folder_path = os.path.join(self.images_folder, label)
             if os.path.exists(folder_path):
-                images = glob(os.path.join(folder_path, '*.png')) + glob(os.path.join(folder_path, '*.jpeg'))
+                images = glob(os.path.join(folder_path, '*.png')) + \
+                         glob(os.path.join(folder_path, '*.jpeg')) + \
+                         glob(os.path.join(folder_path, '*.jpg')) + \
+                         glob(os.path.join(folder_path, '*.JPG'))
                 for img in images:
                     data.append({'path': img, 'label': label})
+                print(f"{label} folder contains {len(images)} files")
+            else:
+                print(f"{label} folder does not exist")
 
         df = pd.DataFrame(data)
         print(f"Loaded dataset with {len(df)} images across {len(classes)} classes")
@@ -36,7 +42,7 @@ class ChestXrayDataset(Dataset):
 
     def create_label_map(self):
         labels = sorted(self.data['label'].unique())
-        label_map = {label: idx for idx, label in enumerate(labels)}
+        label_map = {label.replace(' ', '_'): idx for idx, label in enumerate(labels)}
         print(f"Label map: {label_map}")
         return label_map
 
@@ -49,7 +55,7 @@ class ChestXrayDataset(Dataset):
         image = Image.open(img_path).convert('RGB')
         label = row['label']
         target = torch.zeros(len(self.label_map))
-        target[self.label_map[label]] = 1
+        target[self.label_map[label.replace(' ', '_')]] = 1
 
         if self.transform:
             image = self.transform(image)
@@ -58,16 +64,8 @@ class ChestXrayDataset(Dataset):
 
 
 def main():
-
     data_folder = "/shared/storage/cs/studentscratch/ay841/covid19-dataset/COVID-19_Radiography_Dataset"
     print(f"Dataset folder contents: {os.listdir(data_folder)}")
-    
-    for label in ['COVID-19', 'NORMAL', 'LUNG_OPACITY', 'VIRAL_PNEUMONIA']:
-        folder_path = os.path.join(data_folder, label)
-        if os.path.exists(folder_path):
-            print(f"{label} folder contains {len(os.listdir(folder_path))} files")
-        else:
-            print(f"{label} folder does not exist")
 
     normalize = transforms.Normalize([0.485, 0.456, 0.406],
                                      [0.229, 0.224, 0.225])
