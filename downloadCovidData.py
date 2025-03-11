@@ -16,7 +16,7 @@ def download_dataset():
     api.authenticate()
     
     # Download the dataset
-    api.dataset_download_files(dataset_name, path='.', unzip=False)
+    api.dataset_download_files(dataset_name, path='..', unzip=False)
 
     print(f"Downloaded to '{zip_file}'. Extracting...")
 
