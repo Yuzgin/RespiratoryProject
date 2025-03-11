@@ -1,4 +1,5 @@
 import os
+import pandas as pd
 import numpy as np
 import torch
 import torch.nn as nn
@@ -6,41 +7,37 @@ from torch.utils.data import DataLoader, Dataset
 from PIL import Image
 from torchvision import transforms, models
 from torchvision.models import ResNet50_Weights
+from glob import glob
 from tqdm import tqdm
 from sklearn.metrics import roc_auc_score
-import pandas as pd
-from glob import glob
 
 class ChestXrayDataset(Dataset):
-    def __init__(self, images_folder, csv_file, transform=None, subset_list=None):
+    def __init__(self, images_folder, transform=None):
         self.images_folder = images_folder
         self.transform = transform
-        self.data = self.load_data(csv_file, subset_list)
+        self.data = self.load_data()
         self.label_map = self.create_label_map()
 
-    def load_data(self, csv_file, subset_list):
-        df = pd.read_csv(csv_file)
+    def load_data(self):
+        # Class labels based on folder names
+        classes = ['COVID-19', 'NORMAL', 'LUNG_OPACITY', 'VIRAL_PNEUMONIA']
+        data = []
 
-        if subset_list:
-            with open(subset_list, 'r') as f:
-                image_list = [line.strip() for line in f.readlines()]
-            df = df[df['Image Index'].isin(image_list)]
+        for label in classes:
+            folder_path = os.path.join(self.images_folder, label)
+            if os.path.exists(folder_path):
+                images = glob(os.path.join(folder_path, '*.png')) + glob(os.path.join(folder_path, '*.jpeg'))
+                for img in images:
+                    data.append({'path': img, 'label': label})
 
-        df['path'] = df['Image Index'].map(self.get_image_paths())
-        df.dropna(subset=['path'], inplace=True)
+        df = pd.DataFrame(data)
+        print(f"Loaded dataset with {len(df)} images across {len(classes)} classes")
         return df
 
-    def get_image_paths(self):
-        search_path = os.path.join(self.images_folder, 'images_*/images', '*.png')
-        image_paths = {os.path.basename(x): x for x in glob(search_path)}
-        return image_paths
-
     def create_label_map(self):
-        labels = set()
-        for item in self.data['Finding Labels']:
-            labels.update(item.split('|'))
-        labels = sorted(labels)
+        labels = sorted(self.data['label'].unique())
         label_map = {label: idx for idx, label in enumerate(labels)}
+        print(f"Label map: {label_map}")
         return label_map
 
     def __len__(self):
@@ -50,25 +47,28 @@ class ChestXrayDataset(Dataset):
         row = self.data.iloc[idx]
         img_path = row['path']
         image = Image.open(img_path).convert('RGB')
-        labels = row['Finding Labels'].split('|')
+        label = row['label']
         target = torch.zeros(len(self.label_map))
-        for label in labels:
-            if label in self.label_map:
-                target[self.label_map[label]] = 1
+        target[self.label_map[label]] = 1
 
         if self.transform:
             image = self.transform(image)
 
         return image, target
 
-def main():
-    data_folder = "/shared/storage/cs/studentscratch/ay841/nih-chest-xrays"
-    csv_file = os.path.join(data_folder, "Data_Entry_2017.csv")
-    test_list = os.path.join(data_folder, "test_list.txt")
 
-    # Define transforms for testing
+def main():
+    data_folder = "/shared/storage/cs/studentscratch/ay841/COVID-19_Radiography_Database"
+
     normalize = transforms.Normalize([0.485, 0.456, 0.406],
                                      [0.229, 0.224, 0.225])
+    transform_train = transforms.Compose([
+        transforms.Resize(256),
+        transforms.CenterCrop(224),
+        transforms.RandomHorizontalFlip(),
+        transforms.ToTensor(),
+        normalize,
+    ])
     transform_test = transforms.Compose([
         transforms.Resize(256),
         transforms.CenterCrop(224),
@@ -76,37 +76,65 @@ def main():
         normalize,
     ])
 
-    # Load test dataset
-    test_dataset = ChestXrayDataset(images_folder=data_folder,
-                                    csv_file=csv_file,
-                                    transform=transform_test,
-                                    subset_list=test_list)
+    train_dataset = ChestXrayDataset(images_folder=data_folder, transform=transform_train)
+    test_dataset = ChestXrayDataset(images_folder=data_folder, transform=transform_test)
 
+    print(f"Length of train dataset: {len(train_dataset)}")
     print(f"Length of test dataset: {len(test_dataset)}")
 
+    # Ask user for batch size and number of workers
     batch_size = int(input("Enter batch size: "))
     num_workers = int(input("Enter number of workers: "))
 
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers)
     test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers)
 
-    # Load model
+    # Use GPUs 0, 1, 2, 3 explicitly
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = models.resnet50(weights=ResNet50_Weights.DEFAULT)
-    num_classes = len(test_dataset.label_map)
+    num_classes = len(train_dataset.label_map)
     model.fc = nn.Linear(model.fc.in_features, num_classes)
 
-    # Load saved weights
-    model.load_state_dict(torch.load("resnet50_trained.pth"))
     model = nn.DataParallel(model, device_ids=[0, 1, 2, 3])
+    print("Using GPUs 0, 1, 2, 3")
+
     model = model.to(device)
 
+    criterion = nn.BCEWithLogitsLoss()
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+
+    num_epochs = 5
+    for epoch in range(num_epochs):
+        model.train()
+        running_loss = 0.0
+        progress_bar = tqdm(train_loader, desc=f"Epoch {epoch + 1}/{num_epochs}", leave=True)
+
+        for images, targets in progress_bar:
+            images = images.to(device)
+            targets = targets.to(device)
+
+            outputs = model(images)
+            loss = criterion(outputs, targets)
+
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+
+            running_loss += loss.item()
+            progress_bar.set_postfix(loss=loss.item())
+
+        print(f'Epoch [{epoch + 1}/{num_epochs}], Loss: {running_loss / len(train_loader):.4f}')
+
+    torch.save(model.state_dict(), "resnet50_covid_trained.pth")
+    print("Model weights saved to resnet50_covid_trained.pth")
+
+    # Evaluation
     model.eval()
     all_targets = []
     all_outputs = []
     total = 0
     correct = 0
 
-    print("Evaluating model...")
     with torch.no_grad():
         for images, targets in tqdm(test_loader, desc="Evaluating"):
             images = images.to(device)
