@@ -24,7 +24,7 @@ class ChestXrayDataset(Dataset):
         data = []
 
         for label in classes:
-            folder_path = os.path.join(self.images_folder, label)
+            folder_path = os.path.join(self.images_folder, label, 'images')  # Search within 'images' folder
             if os.path.exists(folder_path):
                 images = glob(os.path.join(folder_path, '*.png')) + \
                          glob(os.path.join(folder_path, '*.jpeg')) + \
