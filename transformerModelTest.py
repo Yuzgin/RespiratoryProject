@@ -69,7 +69,12 @@ def evaluate():
     ])
 
     test_dataset = ChestXrayDataset(data_folder, csv_file, transform_test, test_list)
-    test_loader = DataLoader(test_dataset, batch_size=256, shuffle=False, num_workers=16)
+
+    # Ask for batch size and number of workers
+    batch_size = int(input("Enter batch size: "))
+    num_workers = int(input("Enter number of workers: "))
+
+    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers)
 
     weights = ViT_B_16_Weights.IMAGENET1K_V1
     model = vit_b_16(weights=weights)
@@ -126,3 +131,4 @@ def evaluate():
 
 if __name__ == "__main__":
     evaluate()
+
