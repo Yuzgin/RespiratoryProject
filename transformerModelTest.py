@@ -81,8 +81,10 @@ def evaluate():
     num_classes = len(test_dataset.label_map)
     model.heads.head = nn.Linear(model.heads.head.in_features, num_classes)
 
-    # Load weights
-    model.load_state_dict(torch.load("vit_b16_trained.pth"))
+    # Load weights and remove 'module.' prefix if present
+    state_dict = torch.load("vit_b16_trained.pth")
+    new_state_dict = {k.replace('module.', ''): v for k, v in state_dict.items()}
+    model.load_state_dict(new_state_dict)
 
     # Set up 4 GPUs
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -131,4 +133,3 @@ def evaluate():
 
 if __name__ == "__main__":
     evaluate()
-
