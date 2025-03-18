@@ -152,7 +152,7 @@ def main():
     model.load_state_dict(torch.load('resnet50_covid_trained.pth'))
     print("Loaded pretrained model weights from 'resnet50_covid_trained.pth'")
 
-    model = nn.DataParallel(model, device_ids=[0, 1, 2, 3])
+    model = nn.DataParallel(model, device_ids=[0, 1])
     model = model.to(device)
 
     print("\n=== Evaluating the pre-trained model ===")
