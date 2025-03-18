@@ -67,7 +67,7 @@ def load_model(model_path, num_classes, device):
     if os.path.exists(model_path):
         print(f"Loading model from {model_path}...")
         # Load model safely with weights_only=True to avoid security issues
-        state_dict = torch.load(model_path, map_location=device, weights_only=True)
+        state_dict = torch.load(model_path, map_location=device)
         
         # Remove 'module.' prefix if model was saved with DataParallel
         new_state_dict = {}
@@ -126,20 +126,23 @@ def main():
 
     model = load_model(model_path, num_classes, device)
 
-    # Freeze backbone first and train only the classifier
-    for param in model.parameters():
-        param.requires_grad = False
-
-    for param in model.fc.parameters():
-        param.requires_grad = True
-
+    # Wrap model with DataParallel
     model = nn.DataParallel(model, device_ids=[0, 1])
     model = model.to(device)
 
-    criterion = nn.BCEWithLogitsLoss()
-    optimizer = torch.optim.Adam(model.fc.parameters(), lr=0.001)
+    # Freeze backbone first and train only the classifier
+    for param in model.module.parameters():
+        param.requires_grad = False
 
-    num_epochs = 3  # Classifier training phase
+    for param in model.module.fc.parameters():
+        param.requires_grad = True
+
+    # Fix optimizer reference using model.module
+    optimizer = torch.optim.Adam(model.module.fc.parameters(), lr=0.001)
+    criterion = nn.BCEWithLogitsLoss()
+
+    print("\n=== Training Classifier Only ===")
+    num_epochs = 3
     for epoch in range(num_epochs):
         model.train()
         running_loss = 0.0
@@ -161,11 +164,12 @@ def main():
         print(f'Epoch [{epoch+1}/{num_epochs}], Loss: {running_loss / len(train_loader):.4f}')
 
     # Unfreeze backbone and fine-tune whole model
-    for param in model.parameters():
+    for param in model.module.parameters():
         param.requires_grad = True
 
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.0001)
+    optimizer = torch.optim.Adam(model.module.parameters(), lr=0.0001)
 
+    print("\n=== Fine-Tuning Whole Model ===")
     num_epochs = 5
     for epoch in range(num_epochs):
         model.train()
@@ -187,7 +191,8 @@ def main():
 
         print(f'Fine-Tuning Epoch [{epoch+1}/{num_epochs}], Loss: {running_loss / len(train_loader):.4f}')
 
-    torch.save(model.state_dict(), "resnet50_trained_nih.pth")
+    # Save the model
+    torch.save(model.module.state_dict(), "resnet50_trained_nih.pth")
     print("Model weights saved to resnet50_trained_nih.pth")
 
 if __name__ == "__main__":
