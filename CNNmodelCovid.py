@@ -89,22 +89,23 @@ def main():
     print(f"Length of train dataset: {len(train_dataset)}")
     print(f"Length of test dataset: {len(test_dataset)}")
 
-    # Use GPU 0 and GPU 1 explicitly
-    device0 = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    device1 = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
-
     # Ask user for batch size and number of workers
-    batch_size = int(input("Enter batch size (for GPU 0): "))
-    batch_size_gpu1 = batch_size * 2  # Double batch size for GPU 1
+    batch_size = int(input("Enter batch size: "))
     num_workers = int(input("Enter number of workers: "))
 
-    train_loader = DataLoader(train_dataset, batch_size=batch_size + batch_size_gpu1, shuffle=True, num_workers=num_workers)
-    test_loader = DataLoader(test_dataset, batch_size=batch_size + batch_size_gpu1, shuffle=False, num_workers=num_workers)
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers)
+    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers)
 
+    # Use GPUs 0, 1, 2, 3 explicitly
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = models.resnet50(weights=ResNet50_Weights.DEFAULT)
     num_classes = len(train_dataset.label_map)
     model.fc = nn.Linear(model.fc.in_features, num_classes)
-    model = model.to(device0)
+
+    model = nn.DataParallel(model, device_ids=[0, 1])
+    print("Using GPUs 0, 1")
+
+    model = model.to(device)
 
     criterion = nn.BCEWithLogitsLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
@@ -116,25 +117,11 @@ def main():
         progress_bar = tqdm(train_loader, desc=f"Epoch {epoch + 1}/{num_epochs}", leave=True)
 
         for images, targets in progress_bar:
-            # Split batch: half to GPU 0, double batch to GPU 1
-            images0, images1 = images[:batch_size].to(device0), images[batch_size:].to(device1)
-            targets0, targets1 = targets[:batch_size].to(device0), targets[batch_size:].to(device1)
+            images = images.to(device)
+            targets = targets.to(device)
 
-            # Use separate streams for each GPU
-            stream0 = torch.cuda.Stream(device0)
-            stream1 = torch.cuda.Stream(device1)
-
-            with torch.cuda.stream(stream0):
-                outputs0 = model(images0)
-                loss0 = criterion(outputs0, targets0)
-
-            with torch.cuda.stream(stream1):
-                outputs1 = model(images1)
-                loss1 = criterion(outputs1, targets1)
-
-            # Sync streams and combine losses
-            torch.cuda.synchronize()
-            loss = loss0 + loss1
+            outputs = model(images)
+            loss = criterion(outputs, targets)
 
             optimizer.zero_grad()
             loss.backward()
@@ -145,7 +132,6 @@ def main():
 
         print(f'Epoch [{epoch + 1}/{num_epochs}], Loss: {running_loss / len(train_loader):.4f}')
 
-    # Save the model
     torch.save(model.state_dict(), "resnet50_covid_trained.pth")
     print("Model weights saved to resnet50_covid_trained.pth")
 
@@ -158,8 +144,8 @@ def main():
 
     with torch.no_grad():
         for images, targets in tqdm(test_loader, desc="Evaluating"):
-            images = images.to(device0)
-            targets = targets.to(device0)
+            images = images.to(device)
+            targets = targets.to(device)
             outputs = model(images)
 
             predicted = (torch.sigmoid(outputs) > 0.5).float()
@@ -185,7 +171,6 @@ def main():
         print(f'Mean AUC score: {mean_auc:.4f}')
     except Exception as e:
         print(f"Failed to calculate AUC: {e}")
-
 
 if __name__ == "__main__":
     main()
