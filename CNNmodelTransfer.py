@@ -133,7 +133,7 @@ def main():
     for param in model.fc.parameters():
         param.requires_grad = True
 
-    model = nn.DataParallel(model, device_ids=[0, 1, 2, 3])
+    model = nn.DataParallel(model, device_ids=[0, 1])
     model = model.to(device)
 
     criterion = nn.BCEWithLogitsLoss()
