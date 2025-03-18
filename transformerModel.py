@@ -109,7 +109,7 @@ def main():
     optimizer = torch.optim.AdamW(model.parameters(), lr=5e-5)
 
     torch.cuda.empty_cache()
-    num_epochs = 5
+    num_epochs = 40
     for epoch in range(num_epochs):
         model.train()
         running_loss = 0.0
