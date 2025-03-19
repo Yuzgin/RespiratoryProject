@@ -107,8 +107,8 @@ def main():
     train_dataset = ChestXrayDataset(data_folder, csv_file, transform, train_list)
     val_dataset = ChestXrayDataset(data_folder, csv_file, transform, val_list)
 
-    train_loader = DataLoader(train_dataset, batch_size=256, shuffle=True, num_workers=16)
-    val_loader = DataLoader(val_dataset, batch_size=256, shuffle=False, num_workers=16)
+    train_loader = DataLoader(train_dataset, batch_size=256, shuffle=True, num_workers=40)
+    val_loader = DataLoader(val_dataset, batch_size=256, shuffle=False, num_workers=40)
 
     weights = ViT_B_16_Weights.IMAGENET1K_V1
     model = vit_b_16(weights=weights)
