@@ -123,7 +123,7 @@ def main():
     criterion = nn.BCEWithLogitsLoss()
     optimizer = torch.optim.AdamW(model.parameters(), lr=5e-5)
 
-    num_epochs = 40
+    num_epochs = 20
     for epoch in range(num_epochs):
         model.train()
         running_loss = 0.0
